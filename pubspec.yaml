@@ -1,0 +1,37 @@
+name: transturc
+description: Application de traduction Turc <-> Français/Anglais (texte & voix)
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # Icônes / UI
+  google_fonts: ^6.2.1
+
+  # Gestion d'état simple
+  provider: ^6.1.2
+
+  # Stockage local (historique, préférences)
+  shared_preferences: ^2.2.3
+
+  # Icônes vectorielles modernes (drapeaux, etc.)
+  flutter_svg: ^2.0.10+1
+  http: ^1.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/anla.png
+    - assets/anla_logo.jpeg
+    - assets/anla_logo.png

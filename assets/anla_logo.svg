@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 280" role="img" aria-label="ANLA logo">
+  <rect width="920" height="280" fill="#F5F5F5"/>
+
+  <g transform="translate(0,6)">
+    <path d="M72 52C72 31 89 16 110 16H215C255 16 287 47 287 87V98C287 137 255 168 215 168H132L97 209C90 218 76 214 76 203L83 168H110C89 168 72 151 72 130V52Z" fill="#0F2D73"/>
+    <rect x="127" y="57" width="10" height="42" rx="5" fill="#F4C94A"/>
+    <rect x="150" y="52" width="10" height="52" rx="5" fill="#F4C94A"/>
+    <rect x="173" y="46" width="10" height="62" rx="5" fill="#F4C94A"/>
+    <rect x="196" y="54" width="10" height="52" rx="5" fill="#F4C94A"/>
+    <rect x="219" y="60" width="10" height="44" rx="5" fill="#F4C94A"/>
+  </g>
+
+  <g>
+    <text x="315" y="172" font-family="'Arial Rounded MT Bold', 'Segoe UI', sans-serif" font-size="210" font-weight="800" fill="#0F2D73" letter-spacing="-10">anla</text>
+    <circle cx="782" cy="62" r="26" fill="#F4C94A"/>
+  </g>
+</svg>
