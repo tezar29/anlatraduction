@@ -4,9 +4,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'main.dart';
 import 'providers/app_state.dart';
 import 'screens/login_screen.dart';
-import 'screens/translate_screen.dart';
 
 /// Ecran de demarrage de l'application Anla.
 ///
@@ -29,27 +29,22 @@ class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
   late final AnimationController _spiralController = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 18),
+    duration: const Duration(seconds: 8),
   )..repeat();
-
-  late final AnimationController _logoController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..forward();
-
-  late final Animation<double> _logoScale = CurvedAnimation(
-    parent: _logoController,
-    curve: Curves.easeOutBack,
-  );
-
   @override
   void initState() {
     super.initState();
+    // Initialisation async pendant le splash — ne bloque pas le thread UI
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final state = context.read<AppState>();
+      state.loadHistory();
+      state.loadThemePreference();
+    });
     Timer(const Duration(milliseconds: 3500), () {
       if (!mounted) return;
       final state = context.read<AppState>();
       final destination = state.isAuthenticated
-          ? const TranslateScreen()
+          ? const RootNav()
           : const LoginScreen();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => destination),
@@ -60,49 +55,30 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     _spiralController.dispose();
-    _logoController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: SplashScreen.navyDark,
+      backgroundColor: Colors.black,
       body: Stack(
-        fit: StackFit.expand,
         children: [
-          AnimatedBuilder(
-            animation: _spiralController,
-            builder: (context, _) {
-              return CustomPaint(
+          // Animated background spiral
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _spiralController,
+              builder: (context, _) => CustomPaint(
                 painter: _SpiralPainter(_spiralController.value),
-                size: Size.infinite,
-              );
-            },
+              ),
+            ),
           ),
+          // Centered logo
           Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ScaleTransition(
-                  scale: _logoScale,
-                  child: Container(
-                    width: 132,
-                    height: 132,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                    padding: const EdgeInsets.all(24),
-                    child: Image.asset(
-                      'assets/anla_logo.png',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 28),
-                const _LoadingBar(),
-              ],
+            child: Image.asset(
+              'assets/anla.png',
+              width: 360,
+              fit: BoxFit.contain,
             ),
           ),
         ],
@@ -142,8 +118,8 @@ class _LoadingBarState extends State<_LoadingBar>
       height: 4,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(4),
-        child: Container(
-          color: SplashScreen.gold.withOpacity(0.2),
+          child: Container(
+          color: SplashScreen.gold.withValues(alpha: 0.2),
           child: AnimatedBuilder(
             animation: _controller,
             builder: (context, _) {
@@ -195,7 +171,7 @@ class _SpiralPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2
         ..color = (i.isEven ? SplashScreen.gold : SplashScreen.navyMid)
-            .withOpacity(i.isEven ? 0.32 : 0.45);
+            .withValues(alpha: i.isEven ? 0.32 : 0.45);
       canvas.drawCircle(center, maxRadius * radii[i], paint);
     }
 
@@ -203,7 +179,7 @@ class _SpiralPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4
       ..strokeCap = StrokeCap.round
-      ..color = SplashScreen.navyMid.withOpacity(0.5);
+      ..color = SplashScreen.navyMid.withValues(alpha: 0.5);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: maxRadius * 0.9),
       -math.pi / 3,
@@ -216,7 +192,7 @@ class _SpiralPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4
       ..strokeCap = StrokeCap.round
-      ..color = SplashScreen.gold.withOpacity(0.35);
+      ..color = SplashScreen.gold.withValues(alpha: 0.35);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: maxRadius * 0.7),
       math.pi * 0.75,

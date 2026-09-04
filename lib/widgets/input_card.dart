@@ -27,11 +27,14 @@ class _InputCardState extends State<InputCard> {
     final scheme = Theme.of(context).colorScheme;
 
     // Synchronise le champ si le texte a été rempli par la voix.
-    if (_controller.text != state.inputText) {
+    if (state.isListening && _controller.text != state.inputText) {
       _controller.value = _controller.value.copyWith(
         text: state.inputText,
         selection: TextSelection.collapsed(offset: state.inputText.length),
       );
+    } else if (!state.isListening && state.inputText.isEmpty && _controller.text.isNotEmpty) {
+      // Efface le champ local si l'état global a été vidé (après traduction)
+      _controller.clear();
     }
 
     return Card(
@@ -75,7 +78,36 @@ class _InputCardState extends State<InputCard> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _MicButton(isListening: state.isListening),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _MicButton(isListening: state.isListening),
+                    if (state.isListening) ...[
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: scheme.errorContainer.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.circle, size: 8, color: Colors.red),
+                            const SizedBox(width: 6),
+                            Text(
+                              '00:${state.recordingSeconds.toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                color: scheme.onErrorContainer,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 FilledButton.icon(
                   onPressed: state.isTranslating || state.inputText.isEmpty
                       ? null

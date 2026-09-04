@@ -5,6 +5,19 @@ allprojects {
     }
 }
 
+// Correctif de compatibilité AGP 9 pour flutter_tts 4.x
+subprojects {
+    afterEvaluate {
+        if (project.name == "flutter_tts") {
+            project.plugins.withId("com.android.library") {
+                val android = project.extensions.findByName("android")
+                    as? com.android.build.gradle.LibraryExtension
+                android?.compileSdk = 35
+            }
+        }
+    }
+}
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")

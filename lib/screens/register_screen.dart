@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
+import '../main.dart';
 import 'verify_email_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -22,21 +23,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _passwordVisible = false;
 
   Future<void> _submit() async {
+    final emailText = email.text.trim();
+    final passwordText = password.text.trim();
+    final firstNameText = firstName.text.trim();
+    final lastNameText = lastName.text.trim();
+
+    if (emailText.isEmpty || passwordText.isEmpty || firstNameText.isEmpty || lastNameText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez remplir tous les champs obligatoires.')),
+      );
+      return;
+    }
+
+    if (passwordText.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Le mot de passe doit contenir au moins 8 caractères.')),
+      );
+      return;
+    }
+
     final state = context.read<AppState>();
     await state.register(
-      email: email.text,
-      password: password.text,
-      firstName: firstName.text,
-      lastName: lastName.text,
-      primaryLanguage: primaryLanguage.text,
-      country: country.text,
-      timezone: timezone.text,
+      email: emailText,
+      password: passwordText,
+      firstName: firstNameText,
+      lastName: lastNameText,
+      primaryLanguage: primaryLanguage.text.trim(),
+      country: country.text.trim(),
+      timezone: timezone.text.trim(),
     );
 
     if (!mounted) return;
     if (state.sessionError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(state.sessionError!)),
+      );
+      return;
+    }
+
+    if (state.isAuthenticated) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const RootNav()),
+        (route) => false,
       );
       return;
     }

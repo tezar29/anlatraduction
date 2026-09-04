@@ -113,6 +113,31 @@ void main() {
     expect(nestedConversation.status, 'ACTIVE');
   });
 
+  test('Registration payload is compatible with the backend contract', () {
+    final payload = BackendService.buildRegisterPayload(
+      email: ' jane@example.com ',
+      password: 'Password123!',
+      firstName: 'Jane ',
+      lastName: ' Doe',
+      primaryLanguage: ' fr ',
+      country: ' FR ',
+      timezone: ' Europe/Paris ',
+    );
+
+    expect(payload['email'], 'jane@example.com');
+    expect(payload['password'], 'Password123!');
+    expect(payload['firstName'], 'Jane');
+    expect(payload['lastName'], 'Doe');
+    expect(payload['fullName'], 'Jane Doe');
+    expect(payload['name'], 'Jane Doe');
+    expect(payload['preferredLanguage'], 'fr');
+    expect(payload['primaryLanguage'], 'fr');
+    expect(payload['country'], 'FR');
+    expect(payload['countryCode'], 'FR');
+    expect(payload['timezone'], 'Europe/Paris');
+    expect(payload['timeZone'], 'Europe/Paris');
+  });
+
   test('Translation API payload matches backend contract', () {
     final request = ApiTranslationService.buildRequestBody(
       text: 'Bonjour',
@@ -190,6 +215,7 @@ void main() {
       'pitch': 0,
       'audioFormat': 'mp3',
       'audioUri': 'https://cdn.example.com/audio.mp3',
+      'audioBase64': 'UklGRiQAAABXQVZFZm10',
       'status': 'COMPLETED',
       'createdAt': '2026-08-30T10:31:38.110Z',
     });
@@ -197,6 +223,7 @@ void main() {
     expect(generation.conversationId, 'conv-1');
     expect(generation.messageId, 'msg-1');
     expect(generation.audioUri, 'https://cdn.example.com/audio.mp3');
+    expect(generation.audioBase64, startsWith('UklGRiQAAABXQVZFZm10'));
     expect(generation.status, 'COMPLETED');
     expect(generation.createdAt, isNotNull);
   });
@@ -313,7 +340,7 @@ class _TestBackendService extends BackendService {
   }
 
   @override
-  Future<List<Conversation>> conversations() async => const [];
+  Future<List<Conversation>> conversations({String? status}) async => const [];
 }
 
 class MockTranslationService implements TranslationService {

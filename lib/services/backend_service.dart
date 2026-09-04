@@ -10,9 +10,15 @@ class BackendService {
   final String baseUrl;
   String? accessToken;
 
-  Uri _uri(String path) => Uri.parse(
-        '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1$path',
-      );
+  Uri _uri(String path, [Map<String, String>? queryParameters]) {
+    final base = baseUrl.replaceAll(RegExp(r'/+$'), '');
+    final uri = Uri.parse('$base/api/v1$path');
+    if (queryParameters == null || queryParameters.isEmpty) return uri;
+    return uri.replace(queryParameters: {
+      ...uri.queryParameters,
+      ...queryParameters,
+    });
+  }
 
   Map<String, dynamic> _normalizeJson(dynamic value) {
     if (value is Map) {
@@ -48,6 +54,7 @@ class BackendService {
     String method,
     String path, {
     Map<String, dynamic>? body,
+    Map<String, String>? query,
   }) async {
     final headers = <String, String>{
       'Accept': 'application/json',
@@ -56,7 +63,7 @@ class BackendService {
         'Authorization': 'Bearer $accessToken',
     };
 
-    final request = http.Request(method, _uri(path))..headers.addAll(headers);
+    final request = http.Request(method, _uri(path, query))..headers.addAll(headers);
     if (body != null) request.body = jsonEncode(body);
 
     final client = http.Client();
@@ -65,10 +72,10 @@ class BackendService {
       final text = await response.stream.bytesToString();
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final payload = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
-        final message = _normalizeJson(payload)['message'] ??
-            _normalizeJson(payload)['error'] ??
-            'Erreur API (${response.statusCode})';
-        throw Exception(message);
+        final normalized = _normalizeJson(payload);
+        var message = normalized['message'] ?? normalized['error'];
+        if (message is List) message = message.join(', ');
+        throw Exception(message ?? 'Erreur API (${response.statusCode})');
       }
       if (text.isEmpty) return <String, dynamic>{};
       final decoded = jsonDecode(text);
@@ -81,6 +88,7 @@ class BackendService {
     }
   }
 
+  // --- Auth ---
   Future<Map<String, dynamic>> login(String email, String password) async {
     final result = await _request(
       'POST',
@@ -99,14 +107,38 @@ class BackendService {
     final refreshToken =
         _pickString(map, ['refreshToken', 'refresh_token', 'refreshTokenValue']);
 
-    if (accessToken == null && refreshToken == null) {
-      return map;
-    }
-
     return {
       ...map,
       if (accessToken != null) 'accessToken': accessToken,
       if (refreshToken != null) 'refreshToken': refreshToken,
+    };
+  }
+
+  static Map<String, dynamic> buildRegisterPayload({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    required String primaryLanguage,
+    required String country,
+    required String timezone,
+  }) {
+    final fn = firstName.trim();
+    final ln = lastName.trim();
+    final full = '$fn $ln'.trim();
+    
+    return {
+      'email': email.trim(),
+      'password': password,
+      'firstName': fn,
+      'lastName': ln,
+      'fullName': full,
+      'name': full,
+      'primaryLanguage': primaryLanguage.trim().isNotEmpty ? primaryLanguage.trim() : 'fr',
+      'preferredLanguage': primaryLanguage.trim().isNotEmpty ? primaryLanguage.trim() : 'fr',
+      'country': country.trim(),
+      'countryCode': country.trim(),
+      'timezone': timezone.trim(),
     };
   }
 
@@ -119,21 +151,15 @@ class BackendService {
     required String country,
     required String timezone,
   }) async {
-    final fullName = [firstName.trim(), lastName.trim()]
-        .where((value) => value.isNotEmpty)
-        .join(' ');
-
-    final payload = {
-      'email': email.trim(),
-      'password': password,
-      'firstName': firstName.trim(),
-      'lastName': lastName.trim(),
-      'fullName': fullName,
-      'primaryLanguage': primaryLanguage.trim().isNotEmpty ? primaryLanguage.trim() : 'fr',
-      'preferredLanguage': primaryLanguage.trim().isNotEmpty ? primaryLanguage.trim() : 'fr',
-      'country': country.trim(),
-      'timezone': timezone.trim(),
-    };
+    final payload = buildRegisterPayload(
+      email: email,
+      password: password,
+      firstName: firstName,
+      lastName: lastName,
+      primaryLanguage: primaryLanguage,
+      country: country,
+      timezone: timezone,
+    );
 
     final result = await _request('POST', '/auth/register', body: payload);
     return _normalizeJson(result);
@@ -183,6 +209,7 @@ class BackendService {
         body: {'refreshToken': refreshToken},
       );
 
+  // --- Profil ---
   Future<UserProfile> profile() async => UserProfile.fromJson(
         (await _request('GET', '/users/me') as Map).cast<String, dynamic>(),
       );
@@ -213,6 +240,241 @@ class BackendService {
     return UserProfile.fromJson(_normalizeJson(result));
   }
 
+  // --- Conversations (Capture 20) ---
+  Future<List<Conversation>> conversations({String? status}) async {
+    final result = await _request(
+      'GET', 
+      '/conversations',
+      query: status != null ? {'status': status} : null,
+    );
+    return _asMapList(result)
+        .map<Conversation>((e) => Conversation.fromJson(e))
+        .toList();
+  }
+
+  Future<List<Conversation>> searchConversations(String query) async {
+    final result = await _request(
+      'GET',
+      '/conversations/search',
+      query: {'query': query},
+    );
+    return _asMapList(result)
+        .map<Conversation>((e) => Conversation.fromJson(e))
+        .toList();
+  }
+
+  Future<Conversation> getConversation(String id) async {
+    final result = await _request('GET', '/conversations/$id');
+    return Conversation.fromJson(_normalizeJson(result));
+  }
+
+  Future<void> deleteConversation(String id) => _request('DELETE', '/conversations/$id');
+
+  Future<void> archiveConversation(String id) => _request('POST', '/conversations/$id/archive');
+
+  // --- Same Device (Captures 21-26) ---
+  Future<Conversation> createSameDevice({
+    required String title,
+    required String sourceLanguage,
+    required String targetLanguage,
+    required String firstSpeakerName,
+    required String secondSpeakerName,
+  }) async {
+    final result = await _request(
+      'POST',
+      '/conversations/same-device',
+      body: {
+        'title': title,
+        'sourceLanguage': sourceLanguage,
+        'targetLanguage': targetLanguage,
+        'firstSpeakerName': firstSpeakerName,
+        'secondSpeakerName': secondSpeakerName,
+      },
+    );
+    return Conversation.fromJson(_normalizeJson(result));
+  }
+
+  Future<List<Speaker>> speakers(String id) async {
+    final result = await _request('GET', '/conversations/$id/same-device/speakers');
+    return _asMapList(result)
+        .map<Speaker>((e) => Speaker.fromJson(e))
+        .toList();
+  }
+
+  Future<void> lifecycle(String id, String action) => 
+      _request('POST', '/conversations/$id/same-device/$action');
+
+  Future<void> activateSpeaker(String conversationId, String speakerId) =>
+      _request(
+        'POST',
+        '/conversations/$conversationId/same-device/speakers/$speakerId/activate',
+      );
+
+  Future<Speaker> addSpeaker(String conversationId, {
+    required String participantId,
+    required String label,
+    String detectedLanguage = 'fr',
+  }) async {
+    final result = await _request(
+      'POST',
+      '/conversations/$conversationId/speakers',
+      body: {
+        'participantId': participantId,
+        'label': label,
+        'detectedLanguage': detectedLanguage,
+        'status': 'ACTIVE',
+      },
+    );
+    return Speaker.fromJson(_normalizeJson(result));
+  }
+
+  Future<dynamic> processTextTurn(
+    String conversationId,
+    String speakerId,
+    String text,
+    String sourceLanguage,
+    String targetLanguage,
+  ) =>
+      _request(
+        'POST',
+        '/conversations/$conversationId/same-device/process-text-turn',
+        body: {
+          'speakerId': speakerId,
+          'text': text,
+          'sourceLanguage': sourceLanguage,
+          'targetLanguage': targetLanguage,
+        },
+      );
+
+  Future<dynamic> processTurn({
+    required String conversationId,
+    required String speakerId,
+    required String audioUri,
+    required String sourceLanguage,
+    required String targetLanguage,
+    int audioDurationMs = 0,
+    int audioBytes = 0,
+  }) => _request(
+    'POST',
+    '/conversations/$conversationId/same-device/process-turn',
+    body: {
+      'speakerId': speakerId,
+      'audioUri': audioUri,
+      'sourceLanguage': sourceLanguage,
+      'targetLanguage': targetLanguage,
+      'audioDurationMs': audioDurationMs,
+      'audioBytes': audioBytes,
+    },
+  );
+
+  Future<List<Map<String, dynamic>>> timeline(String id) async {
+    final result = await _request('GET', '/conversations/$id/same-device/timeline');
+    return _mapList(result);
+  }
+
+  Future<Map<String, dynamic>> usage(String id) async =>
+      _normalizeJson(await _request('GET', '/conversations/$id/same-device/usage'));
+
+  /// GET /conversations/{id}/same-device/turn-policy
+  /// Source de vérité côté serveur pour savoir qui doit parler : mode
+  /// (MANUAL/AUTO_ALTERNATE), locuteur actif, et prochain locuteur attendu.
+  Future<Map<String, dynamic>> turnPolicy(String id) async =>
+      _normalizeJson(await _request('GET', '/conversations/$id/same-device/turn-policy'));
+
+  /// PATCH /conversations/{id}/same-device/turn-policy — change le mode
+  /// (ex: "AUTO_ALTERNATE" pour que le tour de parole avance tout seul).
+  Future<Map<String, dynamic>> updateTurnPolicy(String id, String mode) async =>
+      _normalizeJson(await _request(
+        'PATCH',
+        '/conversations/$id/same-device/turn-policy',
+        body: {'mode': mode},
+      ));
+
+  /// PATCH /conversations/{id}/same-device/speakers/{speakerId}/display
+  /// Enregistre côté serveur l'affichage d'un locuteur dans l'écran
+  /// face-à-face (couleur, position).
+  Future<Map<String, dynamic>> updateSpeakerDisplay(
+    String id,
+    String speakerId, {
+    required String displayColor,
+    required String displayPosition,
+  }) async =>
+      _normalizeJson(await _request(
+        'PATCH',
+        '/conversations/$id/same-device/speakers/$speakerId/display',
+        body: {
+          'displayColor': displayColor,
+          'displayPosition': displayPosition,
+        },
+      ));
+
+  /// GET /conversations/{id}/speakers/usage — métriques voix/silence.
+  Future<Map<String, dynamic>> speakersUsage(String id) async =>
+      _normalizeJson(await _request('GET', '/conversations/$id/speakers/usage'));
+
+  /// POST /conversations/{id}/messages — enregistre le message complet
+  /// (texte original + traduction déjà connue) pour une conversation.
+  Future<Map<String, dynamic>> addMessage(
+    String id, {
+    required String participantId,
+    required String originalText,
+    required String sourceLanguage,
+    required String targetLanguage,
+    String translatedText = '',
+    String type = 'TEXT',
+    String detectedLanguage = '',
+    double transcriptionConfidence = 0,
+    double translationConfidence = 0,
+    int audioDurationMs = 0,
+    int audioBytes = 0,
+  }) async =>
+      _normalizeJson(await _request(
+        'POST',
+        '/conversations/$id/messages',
+        body: {
+          'participantId': participantId,
+          'type': type,
+          'originalText': originalText,
+          'translatedText': translatedText,
+          'sourceLanguage': sourceLanguage,
+          'targetLanguage': targetLanguage,
+          if (detectedLanguage.isNotEmpty) 'detectedLanguage': detectedLanguage,
+          'transcriptionConfidence': transcriptionConfidence,
+          'translationConfidence': translationConfidence,
+          'audioDurationMs': audioDurationMs,
+          'audioBytes': audioBytes,
+        },
+      ));
+
+  /// POST /conversations/{id}/speakers/turns — enregistre un tour de
+  /// parole côté serveur (utile notamment pour que l'alternance AUTO
+  /// avance correctement). Best-effort : les valeurs non connues côté
+  /// client (timing précis, confiance) sont envoyées à 0/1 par défaut.
+  Future<Map<String, dynamic>> addSpeakerTurn(
+    String id, {
+    required String speakerId,
+    String participantId = '',
+    String messageId = '',
+    int turnIndex = 0,
+    int startMs = 0,
+    int endMs = 0,
+    double confidence = 1,
+  }) async =>
+      _normalizeJson(await _request(
+        'POST',
+        '/conversations/$id/speakers/turns',
+        body: {
+          'speakerId': speakerId,
+          'participantId': participantId.isNotEmpty ? participantId : speakerId,
+          if (messageId.isNotEmpty) 'messageId': messageId,
+          'turnIndex': turnIndex,
+          'startMs': startMs,
+          'endMs': endMs,
+          'confidence': confidence,
+        },
+      ));
+
+  // --- Abonnements ---
   Future<List<SubscriptionPlan>> plans() async {
     final result = await _request('GET', '/subscriptions/plans');
     return _asMapList(result)
@@ -220,59 +482,26 @@ class BackendService {
         .toList();
   }
 
-  Future<List<LanguagePack>> languagePacks() async {
-    final result = await _request('GET', '/packs-langues');
-    return _asMapList(result)
-        .map<LanguagePack>((e) => LanguagePack.fromJson(e))
-        .toList();
-  }
-
-  Future<LanguagePack> languagePack(String languageCode) async {
-    final result = await _request('GET', '/packs-langues/$languageCode');
-    return LanguagePack.fromJson(_normalizeJson(result));
-  }
-
-  Future<List<LanguagePack>> recommendedLanguagePacks() async {
-    final result = await _request('GET', '/packs-langues/recommendations');
-    return _asMapList(result)
-        .map<LanguagePack>((e) => LanguagePack.fromJson(e))
-        .toList();
-  }
-
-  Future<List<LanguagePackInstallation>> installedLanguagePacks() async {
-    final result = await _request('GET', '/packs-langues/installations');
-    return _asMapList(result)
-        .map<LanguagePackInstallation>((e) => LanguagePackInstallation.fromJson(e))
-        .toList();
-  }
-
-  Future<LanguagePackInstallation> installLanguagePack(
-    String languageCode, {
-    required String deviceId,
-    required String installedVersion,
-  }) async {
+  Future<UserSubscription> changePlan(String planCode) async {
     final result = await _request(
       'POST',
-      '/packs-langues/$languageCode/installations',
-      body: {
-        'deviceId': deviceId,
-        'installedVersion': installedVersion,
-      },
+      '/subscriptions/me/change-plan',
+      body: {'planCode': planCode},
     );
-    return LanguagePackInstallation.fromJson(_normalizeJson(result));
+    return UserSubscription.fromJson(_normalizeJson(result));
   }
 
-  Future<void> uninstallLanguagePack(String languageCode) => _request(
-        'DELETE',
-        '/packs-langues/$languageCode/installations',
-      );
+  Future<UserSubscription> cancelSubscription() async {
+    final result = await _request('POST', '/subscriptions/me/cancel');
+    return UserSubscription.fromJson(_normalizeJson(result));
+  }
 
-  Future<void> syncLanguagePackMetadata(Map<String, dynamic> metadata) => _request(
-        'POST',
-        '/offline/sync-metadata',
-        body: metadata,
-      );
+  Future<UserSubscription> renewSubscription() async {
+    final result = await _request('POST', '/subscriptions/me/renew');
+    return UserSubscription.fromJson(_normalizeJson(result));
+  }
 
+  // --- Facturation ---
   Future<BillingInvoice> createInvoice({String? subscriptionId}) async {
     final result = await _request(
       'POST',
@@ -287,11 +516,6 @@ class BackendService {
     return _asMapList(result)
         .map<BillingInvoice>((e) => BillingInvoice.fromJson(e))
         .toList();
-  }
-
-  Future<BillingInvoice> invoice(String invoiceId) async {
-    final result = await _request('GET', '/billing/invoices/$invoiceId');
-    return BillingInvoice.fromJson(_normalizeJson(result));
   }
 
   Future<PaymentRecord> createPayment({
@@ -327,161 +551,11 @@ class BackendService {
     return PaymentRecord.fromJson(_normalizeJson(result));
   }
 
-  Future<PaymentRecord> failPayment(String paymentId) async {
-    final result = await _request('POST', '/billing/payments/$paymentId/fail');
-    return PaymentRecord.fromJson(_normalizeJson(result));
-  }
-
-  Future<PaymentRecord> refundPayment(String paymentId) async {
-    final result = await _request('POST', '/billing/payments/$paymentId/refund');
-    return PaymentRecord.fromJson(_normalizeJson(result));
-  }
-
-  Future<UserSubscription> changePlan(String planCode) async {
-    final result = await _request(
-      'POST',
-      '/subscriptions/me/change-plan',
-      body: {'planCode': planCode},
-    );
-    return UserSubscription.fromJson(_normalizeJson(result));
-  }
-
-  Future<UserSubscription> cancelSubscription() async {
-    final result = await _request('POST', '/subscriptions/me/cancel');
-    return UserSubscription.fromJson(_normalizeJson(result));
-  }
-
-  Future<UserSubscription> renewSubscription() async {
-    final result = await _request('POST', '/subscriptions/me/renew');
-    return UserSubscription.fromJson(_normalizeJson(result));
-  }
-
-  Future<List<Conversation>> conversations() async {
-    final result = await _request('GET', '/conversations');
-    return _asMapList(result)
-        .map<Conversation>((e) => Conversation.fromJson(e))
-        .toList();
-  }
-
-  Future<Conversation> createSameDevice({
-    required String title,
-    required String sourceLanguage,
-    required String targetLanguage,
-    required String firstSpeakerName,
-    required String secondSpeakerName,
-  }) async {
-    final result = await _request(
-      'POST',
-      '/conversations/same-device',
-      body: {
-        'title': title,
-        'sourceLanguage': sourceLanguage,
-        'targetLanguage': targetLanguage,
-        'firstSpeakerName': firstSpeakerName,
-        'secondSpeakerName': secondSpeakerName,
-      },
-    );
-    return Conversation.fromJson((result as Map).cast<String, dynamic>());
-  }
-
-  Future<List<Speaker>> speakers(String id) async {
-    final result = await _request(
-      'GET',
-      '/conversations/$id/same-device/speakers',
-    );
-    return _asMapList(result)
-        .map<Speaker>((e) => Speaker.fromJson(e))
-        .toList();
-  }
-
-  Future<void> lifecycle(String id, String action) => _request(
-        'POST',
-        '/conversations/$id/same-device/$action',
-      );
-
-  Future<void> activateSpeaker(String conversationId, String speakerId) =>
-      _request(
-        'POST',
-        '/conversations/$conversationId/same-device/speakers/$speakerId/activate',
-      );
-
-  Future<dynamic> processTextTurn(
-    String conversationId,
-    String speakerId,
-    String text,
-    String sourceLanguage,
-    String targetLanguage,
-  ) =>
-      _request(
-        'POST',
-        '/conversations/$conversationId/same-device/process-text-turn',
-        body: {
-          'speakerId': speakerId,
-          'text': text,
-          'sourceLanguage': sourceLanguage,
-          'targetLanguage': targetLanguage,
-        },
-      );
-
-  Future<List<Map<String, dynamic>>> timeline(String id) async {
-    final result = await _request(
-      'GET',
-      '/conversations/$id/same-device/timeline',
-    );
-    return _mapList(result);
-  }
-
-  Future<Map<String, dynamic>> usage(String id) async =>
-      ((await _request('GET', '/conversations/$id/same-device/usage')) as Map)
-          .cast<String, dynamic>();
-
-  Future<Map<String, dynamic>> dailyUsage() async =>
-      ((await _request('GET', '/usage/me/daily')) as Map)
-          .cast<String, dynamic>();
-
-  Future<TtsGeneration> synthesizeTts({
-    required String conversationId,
-    required String messageId,
-    required String text,
-    required String languageCode,
-    String voiceName = '',
-    String voiceGender = '',
-    num speakingRate = 0,
-    num pitch = 0,
-    String audioFormat = 'mp3',
-  }) async {
-    final result = await _request(
-      'POST',
-      '/tts/synthesiser',
-      body: {
-        'conversationId': conversationId,
-        'messageId': messageId,
-        'text': text,
-        'languageCode': languageCode,
-        if (voiceName.trim().isNotEmpty) 'voiceName': voiceName,
-        if (voiceGender.trim().isNotEmpty) 'voiceGender': voiceGender,
-        'speakingRate': speakingRate,
-        'pitch': pitch,
-        'audioFormat': audioFormat,
-      },
-    );
-    return TtsGeneration.fromJson(_normalizeJson(result));
-  }
-
-  Future<List<TtsGeneration>> ttsGenerations() async {
-    final result = await _request('GET', '/tts/generations');
-    return _asMapList(result)
-        .map<TtsGeneration>((entry) => TtsGeneration.fromJson(entry))
-        .toList();
-  }
-
-  List<Map<String, dynamic>> _mapList(dynamic result) {
-    return _asMapList(result);
-  }
+  // --- Utilitaires ---
+  List<Map<String, dynamic>> _mapList(dynamic result) => _asMapList(result);
 
   List<Map<String, dynamic>> _asMapList(dynamic result) {
     List<dynamic> list;
-
     if (result is List) {
       list = result;
     } else if (result is Map) {
@@ -491,7 +565,6 @@ class BackendService {
     } else {
       list = <dynamic>[];
     }
-
     return list
         .whereType<Map>()
         .map<Map<String, dynamic>>((e) => e.cast<String, dynamic>())

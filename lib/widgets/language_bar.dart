@@ -4,8 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/language.dart';
 import '../providers/app_state.dart';
 
-/// Barre du haut affichant la langue source, un bouton d'inversion,
-/// et un sélecteur pour la langue cible (français / anglais).
+/// Barre du haut permettant de sélectionner les langues source et cible.
 class LanguageBar extends StatelessWidget {
   const LanguageBar({super.key});
 
@@ -29,12 +28,20 @@ class LanguageBar extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // Sélection Langue Source
           Expanded(
-            child: _LanguagePill(
-              language: state.sourceLang,
-              alignRight: false,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: _LanguagePicker(
+                current: state.sourceLang,
+                onChanged: state.setSourceLang,
+                isSource: true,
+              ),
             ),
           ),
+          
+          // Bouton Inverser
           Material(
             color: Colors.transparent,
             shape: const CircleBorder(),
@@ -56,13 +63,16 @@ class LanguageBar extends StatelessWidget {
               ),
             ),
           ),
+
+          // Sélection Langue Cible
           Expanded(
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
-              child: _TargetLanguagePicker(
+              child: _LanguagePicker(
                 current: state.targetLang,
                 onChanged: state.setTargetLang,
+                isSource: false,
               ),
             ),
           ),
@@ -72,38 +82,16 @@ class LanguageBar extends StatelessWidget {
   }
 }
 
-class _LanguagePill extends StatelessWidget {
-  const _LanguagePill({required this.language, required this.alignRight});
-  final AppLanguage language;
-  final bool alignRight;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        mainAxisAlignment:
-            alignRight ? MainAxisAlignment.end : MainAxisAlignment.center,
-        children: [
-          Text(language.flagEmoji, style: const TextStyle(fontSize: 18)),
-          const SizedBox(width: 8),
-          Text(
-            language.label,
-            style: Theme.of(context)
-                .textTheme
-                .titleSmall
-                ?.copyWith(fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TargetLanguagePicker extends StatelessWidget {
-  const _TargetLanguagePicker({required this.current, required this.onChanged});
+class _LanguagePicker extends StatelessWidget {
+  const _LanguagePicker({
+    required this.current, 
+    required this.onChanged,
+    required this.isSource,
+  });
+  
   final AppLanguage current;
   final ValueChanged<AppLanguage> onChanged;
+  final bool isSource;
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +100,7 @@ class _TargetLanguagePicker extends StatelessWidget {
     return PopupMenuButton<AppLanguage>(
       onSelected: onChanged,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      itemBuilder: (context) => AppLanguage.targets
+      itemBuilder: (context) => AppLanguage.all
           .map(
             (lang) {
               final recommended = state.recommendedLanguagePacks.any(
@@ -180,37 +168,14 @@ class _TargetLanguagePicker extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
-                  if (current.isPackInstalled) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        'Installé',
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
-                    ),
-                  ],
                   const SizedBox(width: 2),
                   const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
                 ],
               ),
             ),
           ),
-          if (current.isPackInstalled)
-            IconButton(
-              onPressed: () async {
-                await state.uninstallLanguagePack(current);
-              },
-              tooltip: 'Désinstaller le pack',
-              icon: const Icon(Icons.delete_outline_rounded, size: 18),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            )
-          else
+          // Optionnel : Bouton de téléchargement uniquement si nécessaire
+          if (!current.isPackInstalled && current.code != 'tr')
             IconButton(
               onPressed: () async {
                 await state.installLanguagePack(current);

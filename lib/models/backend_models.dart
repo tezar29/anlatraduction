@@ -258,35 +258,73 @@ class PaymentRecord {
 }
 
 class Conversation {
-  const Conversation({required this.id, this.title = 'Conversation', this.status = 'NEW', this.sourceLanguage = 'fr', this.targetLanguage = 'tr'});
+  const Conversation({
+    required this.id,
+    this.title = 'Conversation',
+    this.status = 'NEW',
+    this.sourceLanguage = 'fr',
+    this.targetLanguage = 'tr',
+    this.activeSpeakerId = '',
+    this.mode = 'SAME_DEVICE',
+  });
 
   final String id;
   final String title;
   final String status;
   final String sourceLanguage;
   final String targetLanguage;
+  final String activeSpeakerId;
+  final String mode;
 
-  factory Conversation.fromJson(Map<String, dynamic> json) => Conversation(
-        id: '${json['id'] ?? json['conversationId'] ?? ''}',
-        title: '${json['title'] ?? 'Conversation'}',
-        status: '${json['status'] ?? 'NEW'}',
-        sourceLanguage: '${json['sourceLanguage'] ?? 'fr'}',
-        targetLanguage: '${json['targetLanguage'] ?? 'tr'}',
-      );
+  factory Conversation.fromJson(Map<String, dynamic> json) {
+    final base = _unwrapPayload(json);
+    return Conversation(
+      id: '${base['id'] ?? base['conversationId'] ?? ''}',
+      title: '${base['title'] ?? 'Conversation'}',
+      status: '${base['status'] ?? 'NEW'}',
+      sourceLanguage: '${base['sourceLanguage'] ?? 'fr'}',
+      targetLanguage: '${base['targetLanguage'] ?? 'tr'}',
+      activeSpeakerId: '${base['activeSpeakerId'] ?? ''}',
+      mode: '${base['mode'] ?? 'SAME_DEVICE'}',
+    );
+  }
 }
 
 class Speaker {
-  const Speaker({required this.id, required this.name, this.active = false});
+  const Speaker({
+    required this.id,
+    required this.name,
+    this.active = false,
+    this.participantId = '',
+    this.detectedLanguage = 'fr',
+  });
 
   final String id;
   final String name;
   final bool active;
+  final String participantId;
+  final String detectedLanguage;
 
-  factory Speaker.fromJson(Map<String, dynamic> json) => Speaker(
-        id: '${json['id'] ?? json['speakerId'] ?? ''}',
-        name: '${json['name'] ?? json['displayName'] ?? 'Locuteur'}',
-        active: json['active'] == true || json['isActive'] == true,
-      );
+  factory Speaker.fromJson(Map<String, dynamic> json) {
+    final base = _asMap(json);
+    return Speaker(
+      id: '${base['id'] ?? base['speakerId'] ?? ''}',
+      name: '${base['label'] ?? base['name'] ?? base['displayName'] ?? 'Locuteur'}',
+      active: base['active'] == true || base['isActive'] == true,
+      participantId: '${base['participantId'] ?? ''}',
+      detectedLanguage: '${base['detectedLanguage'] ?? 'fr'}',
+    );
+  }
+
+  Speaker copyWith({bool? active}) {
+    return Speaker(
+      id: id,
+      name: name,
+      active: active ?? this.active,
+      participantId: participantId,
+      detectedLanguage: detectedLanguage,
+    );
+  }
 }
 
 class TtsGeneration {
@@ -303,6 +341,7 @@ class TtsGeneration {
     this.pitch = 0,
     this.audioFormat = 'mp3',
     this.audioUri = '',
+    this.audioBase64 = '',
     this.status = 'COMPLETED',
     this.createdAt,
   });
@@ -319,6 +358,7 @@ class TtsGeneration {
   final num pitch;
   final String audioFormat;
   final String audioUri;
+  final String audioBase64;
   final String status;
   final DateTime? createdAt;
 
@@ -346,6 +386,7 @@ class TtsGeneration {
       pitch: base['pitch'] ?? 0,
       audioFormat: '${base['audioFormat'] ?? base['audio_format'] ?? 'mp3'}',
       audioUri: '${base['audioUri'] ?? base['audio_url'] ?? base['audioUrl'] ?? ''}',
+      audioBase64: '${base['audioBase64'] ?? base['audio_base64'] ?? base['audio'] ?? ''}',
       status: '${base['status'] ?? 'COMPLETED'}',
       createdAt: parseDate(base['createdAt'] ?? base['created_at']),
     );

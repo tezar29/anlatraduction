@@ -18,7 +18,7 @@ class ApiTranslationService implements TranslationService {
   ApiTranslationService({required this.baseUrl, this.accessToken});
 
   final String baseUrl;
-  final String? accessToken;
+  String? accessToken;
 
   static dynamic _safeJsonDecode(String body) {
     final trimmed = body.trim();
@@ -88,21 +88,33 @@ class ApiTranslationService implements TranslationService {
         'Authorization': 'Bearer $accessToken',
     };
 
-    final response = await http.post(
-      Uri.parse('${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/translation'),
-      headers: headers,
-      body: jsonEncode(buildRequestBody(
-        text: text,
-        sourceLangCode: sourceLangCode,
-        targetLangCode: targetLangCode,
-        conversationId: conversationId,
-        messageId: messageId,
-      )),
-    );
+    final http.Response response;
+    try {
+      response = await http
+          .post(
+            Uri.parse('${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/v1/translations'),
+            headers: headers,
+            body: jsonEncode(buildRequestBody(
+              text: text,
+              sourceLangCode: sourceLangCode,
+              targetLangCode: targetLangCode,
+              conversationId: conversationId,
+              messageId: messageId,
+            )),
+          )
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () => throw Exception('Délai de traduction dépassé (15s)'),
+          );
+    } on Exception {
+      rethrow;
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = _safeJsonDecode(response.body);
-      final message = body is Map ? (body['message'] ?? body['error']) : null;
+      final decoded = _safeJsonDecode(response.body);
+      final message = decoded is Map
+          ? (decoded['message'] ?? decoded['error'])
+          : null;
       throw Exception(message ?? 'Erreur de traduction (${response.statusCode})');
     }
 

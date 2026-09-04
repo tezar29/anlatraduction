@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
+import '../main.dart';
 import 'forgot_password_screen.dart';
 import 'guest_session_screen.dart';
 import 'register_screen.dart';
-import 'translate_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,7 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_hasRedirected || !mounted) return;
     _hasRedirected = true;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const TranslateScreen()),
+      MaterialPageRoute(builder: (_) => const RootNav()),
       (route) => false,
     );
   }
@@ -59,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       Align(
                         alignment: Alignment.center,
                         child: Image.asset(
-                          'assets/anla_logo.jpeg',
+                          'assets/anla.png',
                           height: 116,
                         ),
                       ),

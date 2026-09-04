@@ -24,6 +24,10 @@ dependencies:
   flutter_svg: ^2.0.10+1
   http: ^1.6.0
 
+  # Voix : reconnaissance vocale + synthèse
+  speech_to_text: ^7.0.0
+  flutter_tts: ^4.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
