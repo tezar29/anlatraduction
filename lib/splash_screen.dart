@@ -61,7 +61,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
           // Animated background spiral
@@ -76,8 +76,8 @@ class _SplashScreenState extends State<SplashScreen>
           // Centered logo
           Center(
             child: Image.asset(
-              'assets/anla.png',
-              width: 360,
+              'assets/anla_logo.png',
+              width: 280,
               fit: BoxFit.contain,
             ),
           ),

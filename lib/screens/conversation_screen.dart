@@ -279,19 +279,6 @@ class _SameDeviceConversationScreenState extends State<SameDeviceConversationScr
     super.initState();
     final state = context.read<AppState>();
     state.setConversationScreenActive(true);
-    // Lance le micro automatiquement avec un délai plus long pour s'assurer
-    // que le micro de l'écran précédent (Traduction) est complètement libéré.
-    // Le délai de 2500ms est crucial pour éviter les collisions.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future.delayed(const Duration(milliseconds: 2500), () {
-        if (mounted) {
-          final state = context.read<AppState>();
-          if (!state.isListening) {
-            state.toggleConversationMic();
-          }
-        }
-      });
-    });
   }
 
   @override

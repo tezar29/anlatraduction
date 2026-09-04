@@ -26,9 +26,9 @@ class ChatTurnBubble extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     // Définition des couleurs selon l'expéditeur
-    final bubbleColor = isMe 
-        ? const Color(0xFF007AFF) // Bleu style iOS/iMessage (Moi)
-        : const Color(0xFFE9E9EB); // Gris clair (Interlocuteur)
+    final bubbleColor = isMe
+        ? const Color(0xFF007AFF) // Bleu vif pour le locuteur courant
+        : const Color(0xFFF0F2F5); // Gris clair distinct pour l'interlocuteur
     final textColor = isMe ? Colors.white : Colors.black87;
     final secondaryTextColor = isMe ? Colors.white70 : Colors.black54;
 
@@ -38,10 +38,13 @@ class ChatTurnBubble extends StatelessWidget {
         crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           // Bulle de message avec son "bec"
-          Row(
-            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
+          Align(
+            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
               if (!isMe) _buildBeak(false, bubbleColor),
               Flexible(
                 child: Container(
@@ -115,7 +118,8 @@ class ChatTurnBubble extends StatelessWidget {
                 ),
               ),
               if (isMe) _buildBeak(true, bubbleColor),
-            ],
+              ],
+            ),
           ),
           
           // NOM DU LOCUTEUR (En bas, discret)

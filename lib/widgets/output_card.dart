@@ -41,6 +41,17 @@ class OutputCard extends StatelessWidget {
                 state.outputText,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
+            if (!state.isTranslating && state.lastRecordedText.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Divider(color: scheme.outlineVariant),
+              const SizedBox(height: 8),
+              Text(
+                state.lastRecordedText,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
             const SizedBox(height: 8),
             if (!state.isTranslating && state.outputText.isNotEmpty)
               Row(
