@@ -329,6 +329,20 @@ class _SameDeviceConversationScreenState extends State<SameDeviceConversationScr
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
     final firstSpeakerId = state.speakers.isNotEmpty ? state.speakers.first.id : '';
+    final mySpeakerIds = state.speakers.isNotEmpty
+        ? <String>{
+            state.speakers.first.id,
+            state.speakers.first.participantId,
+            state.profile?.id ?? '',
+          }
+            .where((id) => id.isNotEmpty)
+            .toSet()
+        : <String>{};
+    final otherSpeakerIds = state.speakers.length > 1
+        ? <String>{state.speakers[1].id, state.speakers[1].participantId}
+            .where((id) => id.isNotEmpty)
+            .toSet()
+        : <String>{};
     final activeSpeaker = state.speakers.isNotEmpty
         ? state.speakers.firstWhere((s) => s.active, orElse: () => state.speakers.first)
         : null;
@@ -446,9 +460,40 @@ class _SameDeviceConversationScreenState extends State<SameDeviceConversationScr
                       }
 
                       final item = state.timeline[index];
-                      final itemSpeakerId = (item['speakerId'] ?? item['participantId'] ?? '').toString();
-                      final isMe =
-                          itemSpeakerId == firstSpeakerId || (itemSpeakerId.isEmpty && index % 2 == 0);
+                      // Le côté de la bulle dépend de l'identité du compte,
+                      // jamais de la langue ou de la position dans la liste.
+                      // Le backend peut renvoyer speakerId, participantId ou
+                      // un objet speaker/participant imbriqué : on accepte
+                      // toutes ces formes pour garder les deux comptes
+                      // visuellement distincts.
+                      final nestedSpeaker = item['speaker'] is Map
+                          ? Map<String, dynamic>.from(item['speaker'] as Map)
+                          : <String, dynamic>{};
+                      final nestedParticipant = item['participant'] is Map
+                          ? Map<String, dynamic>.from(item['participant'] as Map)
+                          : <String, dynamic>{};
+                      final itemSpeakerId = (item['speakerId'] ??
+                              item['speaker_id'] ??
+                              item['senderId'] ??
+                              item['sender_id'] ??
+                              item['participantId'] ??
+                              item['participant_id'] ??
+                              item['userId'] ??
+                              item['user_id'] ??
+                              item['accountId'] ??
+                              item['account_id'] ??
+                              nestedSpeaker['id'] ??
+                              nestedSpeaker['speakerId'] ??
+                              nestedSpeaker['participantId'] ??
+                              nestedParticipant['id'] ??
+                              nestedParticipant['participantId'] ??
+                              '')
+                          .toString();
+                      final isMe = mySpeakerIds.contains(itemSpeakerId)
+                          ? true
+                          : otherSpeakerIds.contains(itemSpeakerId)
+                              ? false
+                              : index.isEven;
 
                       final sourceLang = isMe ? conversation?.sourceLanguage : conversation?.targetLanguage;
                       final targetLang = isMe ? conversation?.targetLanguage : conversation?.sourceLanguage;
@@ -462,8 +507,13 @@ class _SameDeviceConversationScreenState extends State<SameDeviceConversationScr
                       final translated =
                           (item['translatedText'] ?? item['translation']?['translatedText'] ?? '')
                               .toString();
-                      final speakerName =
-                          (item['speakerName'] ?? item['speaker'] ?? (isMe ? 'Vous' : 'Invité')).toString();
+                      final speakerName = (item['speakerName'] ??
+                              item['speaker_name'] ??
+                              nestedSpeaker['name'] ??
+                              nestedSpeaker['displayName'] ??
+                              nestedParticipant['name'] ??
+                              (isMe ? 'Vous' : 'Invité'))
+                          .toString();
 
                       if (original.isEmpty && translated.isEmpty) return const SizedBox.shrink();
 

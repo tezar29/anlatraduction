@@ -27,110 +27,126 @@ class ChatTurnBubble extends StatelessWidget {
 
     // Définition des couleurs selon l'expéditeur
     final bubbleColor = isMe
-        ? const Color(0xFF007AFF) // Bleu vif pour le locuteur courant
-        : const Color(0xFFF0F2F5); // Gris clair distinct pour l'interlocuteur
+        ? const Color(0xFF007AFF)
+        : const Color(0xFFE9EDF3);
     final textColor = isMe ? Colors.white : Colors.black87;
     final secondaryTextColor = isMe ? Colors.white70 : Colors.black54;
+    final dividerColor = isMe ? Colors.white30 : const Color(0xFFCBD2DC);
+    final nameColor = isMe ? const Color(0xFF0066D6) : scheme.onSurfaceVariant;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
       child: Column(
-        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          // Bulle de message avec son "bec"
+          // Chaque locuteur occupe son côté du fil, comme dans une vraie
+          // messagerie : nous à droite, l'interlocuteur à gauche.
           Align(
             alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+              mainAxisAlignment:
+                  isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-              if (!isMe) _buildBeak(false, bubbleColor),
-              Flexible(
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.75,
-                  ),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: bubbleColor,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(22),
-                      topRight: const Radius.circular(22),
-                      bottomLeft: Radius.circular(isMe ? 22 : 0),
-                      bottomRight: Radius.circular(isMe ? 0 : 22),
+                if (!isMe) _buildBeak(false, bubbleColor),
+                Flexible(
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.78,
+                    ),
+                    padding: const EdgeInsets.fromLTRB(15, 13, 15, 12),
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(20),
+                        topRight: const Radius.circular(20),
+                        bottomLeft: Radius.circular(isMe ? 20 : 3),
+                        bottomRight: Radius.circular(isMe ? 3 : 20),
+                      ),
+                      border: isMe
+                          ? null
+                          : Border.all(color: const Color(0xFFD8DEE7)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isMe ? 0.12 : 0.06),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: isMe
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: [
+                        // Traduction en premier : lecture rapide du résultat.
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isMe) _buildPlayBtn(onPlayTranslation, textColor),
+                            Flexible(
+                              child: Text(
+                                translatedText.toUpperCase(),
+                                textAlign: isMe ? TextAlign.right : TextAlign.left,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  height: 1.25,
+                                  fontWeight: FontWeight.w800,
+                                  color: textColor,
+                                ),
+                              ),
+                            ),
+                            if (!isMe) _buildPlayBtn(onPlayTranslation, textColor),
+                          ],
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Divider(
+                            height: 1,
+                            thickness: 0.8,
+                            color: dividerColor,
+                          ),
+                        ),
+                        // Original sous la séparation, comme dans le brief.
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isMe) _buildPlayBtn(onPlayOriginal, secondaryTextColor),
+                            Flexible(
+                              child: Text(
+                                originalText,
+                                textAlign: isMe ? TextAlign.right : TextAlign.left,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.3,
+                                  fontWeight: FontWeight.w500,
+                                  color: secondaryTextColor,
+                                ),
+                              ),
+                            ),
+                            if (!isMe) _buildPlayBtn(onPlayOriginal, secondaryTextColor),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                    children: [
-                      // 1. TEXTE TRADUIT (En haut)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isMe) _buildPlayBtn(onPlayTranslation, textColor),
-                          Flexible(
-                            child: Text(
-                              translatedText.toUpperCase(),
-                              textAlign: isMe ? TextAlign.right : TextAlign.left,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: textColor,
-                              ),
-                            ),
-                          ),
-                          if (!isMe) _buildPlayBtn(onPlayTranslation, textColor),
-                        ],
-                      ),
-                      
-                      // 2. LIGNE DE SÉPARATION (Entre les deux textes)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 10.0),
-                        child: Divider(
-                          height: 1, 
-                          thickness: 0.8, 
-                          color: isMe ? Colors.white30 : Colors.black12,
-                        ),
-                      ),
-
-                      // 3. TEXTE ORIGINAL (En bas)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isMe) _buildPlayBtn(onPlayOriginal, secondaryTextColor),
-                          Flexible(
-                            child: Text(
-                              originalText,
-                              textAlign: isMe ? TextAlign.right : TextAlign.left,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: secondaryTextColor,
-                              ),
-                            ),
-                          ),
-                          if (!isMe) _buildPlayBtn(onPlayOriginal, secondaryTextColor),
-                        ],
-                      ),
-                    ],
-                  ),
                 ),
-              ),
-              if (isMe) _buildBeak(true, bubbleColor),
+                if (isMe) _buildBeak(true, bubbleColor),
               ],
             ),
           ),
-          
+
           // NOM DU LOCUTEUR (En bas, discret)
           Padding(
-            padding: const EdgeInsets.only(top: 4, left: 14, right: 14),
+            padding: const EdgeInsets.only(top: 5, left: 14, right: 14),
             child: Text(
               isMe ? 'Moi' : speakerName,
               style: TextStyle(
-                fontSize: 10, 
-                fontWeight: FontWeight.bold, 
-                color: scheme.outline,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: nameColor,
                 letterSpacing: 0.5,
               ),
             ),
