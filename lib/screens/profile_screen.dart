@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
+import '../models/language.dart';
+import '../models/country.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,8 +14,8 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final fullName = TextEditingController();
-  final preferredLanguage = TextEditingController(text: 'fr');
-  final country = TextEditingController();
+  String _selectedLanguage = 'fr';
+  String _selectedCountry = 'FR';
   final timezone = TextEditingController();
 
   @override
@@ -22,8 +24,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final profile = context.read<AppState>().profile;
     if (profile == null) return;
     fullName.text = profile.fullName;
-    preferredLanguage.text = profile.preferredLanguage;
-    country.text = profile.country;
+    _selectedLanguage = profile.preferredLanguage;
+    _selectedCountry = profile.country;
     timezone.text = profile.timezone;
   }
 
@@ -31,8 +33,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final state = context.read<AppState>();
     await state.updateProfile(
       fullName: fullName.text,
-      preferredLanguage: preferredLanguage.text,
-      country: country.text,
+      preferredLanguage: _selectedLanguage,
+      country: _selectedCountry,
       timezone: timezone.text,
     );
 
@@ -90,14 +92,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: const InputDecoration(labelText: 'Nom complet'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: preferredLanguage,
+                DropdownButtonFormField<String>(
+                  value: AppLanguage.all.any((l) => l.code == _selectedLanguage)
+                      ? _selectedLanguage
+                      : AppLanguage.all.first.code,
                   decoration: const InputDecoration(labelText: 'Langue préférée'),
+                  items: AppLanguage.all
+                      .map((lang) => DropdownMenuItem(
+                            value: lang.code,
+                            child: Text('${lang.flagEmoji} ${lang.label}'),
+                          ))
+                      .toList(),
+                  onChanged: (val) => setState(() => _selectedLanguage = val ?? 'fr'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: country,
+                DropdownButtonFormField<String>(
+                  value: AppCountry.all.any((c) => c.code == _selectedCountry)
+                      ? _selectedCountry
+                      : AppCountry.all.first.code,
                   decoration: const InputDecoration(labelText: 'Pays'),
+                  items: AppCountry.all
+                      .map((c) => DropdownMenuItem(
+                            value: c.code,
+                            child: Text('${c.flagEmoji} ${c.name}'),
+                          ))
+                      .toList(),
+                  onChanged: (val) => setState(() => _selectedCountry = val ?? 'FR'),
                 ),
                 const SizedBox(height: 12),
                 TextField(

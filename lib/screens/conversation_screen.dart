@@ -328,7 +328,6 @@ class _SameDeviceConversationScreenState extends State<SameDeviceConversationScr
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
-    final firstSpeakerId = state.speakers.isNotEmpty ? state.speakers.first.id : '';
     final mySpeakerIds = state.speakers.isNotEmpty
         ? <String>{
             state.speakers.first.id,
@@ -346,7 +345,7 @@ class _SameDeviceConversationScreenState extends State<SameDeviceConversationScr
     final activeSpeaker = state.speakers.isNotEmpty
         ? state.speakers.firstWhere((s) => s.active, orElse: () => state.speakers.first)
         : null;
-    final activeSpeakerIsMe = activeSpeaker?.id == firstSpeakerId;
+    final activeSpeakerIsMe = activeSpeaker != null && mySpeakerIds.contains(activeSpeaker.id);
 
     return Scaffold(
       appBar: AppBar(
@@ -538,27 +537,14 @@ class _SameDeviceConversationScreenState extends State<SameDeviceConversationScr
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (!state.isListening && activeSpeaker != null && conversation != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.mic_none_rounded, size: 14, color: scheme.primary),
-                          const SizedBox(width: 6),
-                          Text(
-                            "C'est à ${activeSpeakerIsMe ? 'vous' : activeSpeaker.name} de parler — appuyez sur le micro",
-                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: scheme.primary),
-                          ),
-                        ],
-                      ),
-                    ),
                   ChatComposer(
                     controller: controller,
-                    isListening: state.isListening,
+                    micState: state.conversationMicState,
                     recordingSeconds: state.recordingSeconds,
                     lastRecordedText: state.lastRecordedText,
-                    onToggleMic: state.toggleConversationMic,
+                    onStartRecording: state.startConversationRecording,
+                    onStopRecording: state.stopConversationRecording,
+                    onCancelRecording: state.cancelConversationRecording,
                     onSend: () => _send(state),
                   ),
                 ],

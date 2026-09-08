@@ -75,9 +75,16 @@ class VoiceService {
           localeId: localeId,
           listenFor: const Duration(seconds: 60),
           pauseFor: const Duration(seconds: 10),
-          cancelOnError: true,
           partialResults: true,
-          onDevice: false,
+          // onDevice:true forçait la reconnaissance HORS-LIGNE uniquement.
+          // Beaucoup de téléphones Android n'ont pas de modèle hors-ligne
+          // installé pour le turc (contrairement au français/anglais,
+          // presque toujours disponibles) — dans ce cas, le moteur ne
+          // renvoie RIEN, sans erreur explicite : ça ressemble exactement
+          // à "le micro ne capte plus de texte", mais spécifiquement selon
+          // la langue/l'appareil. En laissant le système choisir (repli
+          // sur la reconnaissance en ligne si besoin d'internet), la
+          // capture redevient fiable pour les deux langues.
         ),
       );
     } catch (e) {
@@ -128,8 +135,8 @@ class VoiceService {
       _activeSpeechCompletion = null;
     }
     
-    // Délai de confort après lecture
-    await Future.delayed(const Duration(milliseconds: 1500));
+    // TEMPS D'ATTENTE AUGMENTÉ : 2.5 secondes pour une stabilité maximale
+    await Future.delayed(const Duration(milliseconds: 2500));
   }
 
   void setStatusListener(void Function(String status) listener) {
@@ -148,7 +155,7 @@ class VoiceService {
   Future<void> reset() async {
     await stopListening();
     await stopSpeaking();
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 800));
     _speechAvailable = false;
     await init(onError: _lastErrorHandler);
   }

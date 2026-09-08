@@ -12,6 +12,20 @@ import '../services/language_pack_service.dart';
 import '../services/translation_service.dart';
 import '../services/voice_service.dart';
 
+/// États du bouton micro en conversation (push-to-talk), suivant
+/// exactement le cycle : appui → parole → relâchement → transcription →
+/// traduction → envoi → lecture → attente du tour suivant.
+enum ConversationMicState {
+  idle, // Rien ne se passe, prêt à appuyer
+  recording, // Doigt maintenu, écoute en cours
+  processing, // Relâché : on récupère le texte capté (transcription)
+  translating, // Traduction du texte
+  sending, // Transmission du tour traité (backend + mise à jour du fil)
+  playing, // Lecture à voix haute de la traduction
+  waiting, // Tour terminé, on attend que l'autre participant parle
+  error, // Une erreur est survenue
+}
+
 class AppState extends ChangeNotifier {
   AppState({
     required this.translationService,
@@ -58,8 +72,31 @@ class AppState extends ChangeNotifier {
   bool isListening = false;
   bool _isAutoRestarting = false;
   bool _isTranslateMode = true;
-  bool _conversationTurnInProgress = false;
   bool _conversationScreenActive = false;
+
+  // --- Machine à états du micro de conversation (push-to-talk) ---
+  ConversationMicState conversationMicState = ConversationMicState.idle;
+
+  void _setConversationMicState(ConversationMicState state) {
+    conversationMicState = state;
+    notifyListeners();
+  }
+
+  /// Le bouton micro est désactivé (appui ignoré) pendant le traitement,
+  /// la traduction et la lecture — mais PAS pendant `recording`, où il
+  /// doit rester réactif pour détecter le relâchement du doigt.
+  bool get isConversationMicBlocked =>
+      conversationMicState == ConversationMicState.processing ||
+      conversationMicState == ConversationMicState.translating ||
+      conversationMicState == ConversationMicState.sending ||
+      conversationMicState == ConversationMicState.playing ||
+      conversationMicState == ConversationMicState.error;
+
+  // États pour l'appui prolongé (Push-to-talk)
+  bool _conversationHoldActive = false;
+  bool _conversationCancelled = false;
+  int _conversationCaptureGeneration = 0;
+  String _pendingConversationText = '';
 
   void _initSystemMicMonitor() {
     voiceService.setStatusListener((status) {
@@ -76,6 +113,7 @@ class AppState extends ChangeNotifier {
     _conversationScreenActive = active;
     if (!active && !_isTranslateMode) {
       stopAllListening();
+      conversationMicState = ConversationMicState.idle;
     }
   }
 
@@ -445,11 +483,10 @@ class AppState extends ChangeNotifier {
     );
     try {
       guestDailyUsage = await service.getDailyUsage(guestSession!.id);
-      notifyListeners();
     } catch (_) {
       guestDailyUsage = {};
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   Future<void> installLanguagePack(AppLanguage language) async {
@@ -548,11 +585,9 @@ class AppState extends ChangeNotifier {
     final low = err.toLowerCase();
     if (!_isAutoRestarting) return;
     if (low.contains('timeout') || low.contains('no match') || low.contains('error_speech_timeout')) {
-      debugPrint("Auto-relaunching mic after error: $err");
       if (_isTranslateMode) {
+        debugPrint("Auto-relaunching mic after error: $err");
         toggleMic();
-      } else {
-        toggleConversationMic();
       }
     }
   }
@@ -562,7 +597,6 @@ class AppState extends ChangeNotifier {
     isTranslating = true;
     notifyListeners();
 
-    // Synchronisation du token avant l'appel
     if (translationService is ApiTranslationService) {
       (translationService as ApiTranslationService).accessToken = backend.accessToken;
     }
@@ -660,17 +694,16 @@ class AppState extends ChangeNotifier {
 
   Future<void> activateSpeaker(Speaker speaker) async {
     if (activeConversation == null) return;
-    await backend.activateSpeaker(activeConversation!.id, speaker.id);
     speakers = speakers.map((s) => s.copyWith(active: s.id == speaker.id)).toList();
     notifyListeners();
+    try {
+      await backend.activateSpeaker(activeConversation!.id, speaker.id);
+    } catch (e) {
+      debugPrint('Activation locuteur différée: $e');
+    }
   }
 
-  Future<void> toggleConversationMic() async {
-    if (isListening) {
-      stopAllListening();
-      return;
-    }
-
+  Future<void> _startConversationMic() async {
     if (activeConversation == null || speakers.isEmpty) return;
 
     _isTranslateMode = false;
@@ -690,42 +723,26 @@ class AppState extends ChangeNotifier {
       orElse: () => AppLanguage.french,
     ).speechLocale;
 
+    final captureGeneration = _conversationCaptureGeneration;
     isListening = true;
     _isAutoRestarting = true;
     _startRecordingTimer();
     notifyListeners();
 
+    void saveToBuffer(String text) {
+      if (captureGeneration != _conversationCaptureGeneration) return;
+      if (text.trim().isEmpty) return;
+      _pendingConversationText = text;
+      // On ne met plus à jour conversationInputText ici pour garder la barre vide
+      notifyListeners();
+    }
+
     await voiceService.startListening(
       localeId: locale,
-      onPartialResult: (text) {
-        conversationInputText = text;
-        notifyListeners();
-      },
-      onResult: (text) async {
-        if (_conversationTurnInProgress || !_conversationScreenActive || _isTranslateMode) return;
-        _conversationTurnInProgress = true;
-        conversationInputText = text;
-        isListening = false;
-        _isAutoRestarting = false;
-        _stopRecordingTimer();
-        notifyListeners();
-
-        if (text.trim().isEmpty) {
-          _conversationTurnInProgress = false;
-          await voiceService.reset();
-          return;
-        }
-
-        try {
-          await Future.delayed(const Duration(milliseconds: 800));
-          if (_conversationScreenActive && !_isTranslateMode) {
-            await processTextTurn(text);
-          }
-        } finally {
-          _conversationTurnInProgress = false;
-        }
-      },
+      onPartialResult: saveToBuffer,
+      onResult: saveToBuffer,
       onServiceError: () async {
+        if (captureGeneration != _conversationCaptureGeneration) return;
         if (_isAutoRestarting && !_isTranslateMode) {
           isListening = false;
           _stopRecordingTimer();
@@ -735,15 +752,116 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  Future<void> _submitConversationText(String text) async {
+    if (!_conversationScreenActive || _isTranslateMode) return;
+
+    // Nettoyage immédiat pour la fluidité visuelle
+    conversationInputText = '';
+    isListening = false;
+    _isAutoRestarting = false;
+    _stopRecordingTimer();
+    _setConversationMicState(ConversationMicState.translating);
+
+    if (text.trim().isEmpty) {
+      await voiceService.reset();
+      _setConversationMicState(ConversationMicState.waiting);
+      return;
+    }
+
+    await processTextTurn(text);
+  }
+
+  Future<void> startConversationRecording() async {
+    if (!_conversationScreenActive ||
+        (conversationMicState != ConversationMicState.idle &&
+            conversationMicState != ConversationMicState.waiting)) {
+      return;
+    }
+    _conversationHoldActive = true;
+    _conversationCancelled = false;
+    _pendingConversationText = '';
+    conversationInputText = ''; // On s'assure que la barre est vide au départ
+    _conversationCaptureGeneration++;
+    _setConversationMicState(ConversationMicState.recording);
+
+    if (isListening || voiceService.isListening) {
+      await stopAllAudio();
+    }
+    await voiceService.stopSpeaking();
+    if (_conversationHoldActive && _conversationScreenActive) {
+        await _startConversationMic();
+    }
+    if (!_conversationHoldActive && isListening) {
+      await stopAllAudio();
+    }
+    if (!_conversationHoldActive && conversationMicState == ConversationMicState.recording) {
+      _setConversationMicState(ConversationMicState.waiting);
+    }
+  }
+
+  void stopConversationRecording() {
+    if (conversationMicState != ConversationMicState.recording) return;
+    _conversationHoldActive = false;
+    _isAutoRestarting = false;
+    conversationInputText = '';
+    _setConversationMicState(ConversationMicState.processing);
+    unawaited(_finishConversationRecording());
+  }
+
+  void cancelRecording() {
+    cancelConversationRecording();
+  }
+
+  void cancelConversationRecording() {
+    if (conversationMicState != ConversationMicState.recording) return;
+    _conversationCancelled = true;
+    _conversationHoldActive = false;
+    _isAutoRestarting = false;
+    _conversationCaptureGeneration++; 
+    _pendingConversationText = '';
+    conversationInputText = '';
+    unawaited(voiceService.stopListening());
+    _stopRecordingTimer();
+    isListening = false;
+    _setConversationMicState(ConversationMicState.waiting);
+  }
+
+  Future<void> _finishConversationRecording() async {
+    await voiceService.stopListening();
+    if (_conversationCancelled) return; 
+    
+    // Attendre que le tampon capture les derniers mots
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (_conversationCancelled) return;
+    _conversationCaptureGeneration++;
+
+    final pending = _pendingConversationText.trim();
+    _pendingConversationText = '';
+    conversationInputText = '';
+    notifyListeners();
+
+    if (pending.isNotEmpty && _conversationScreenActive && !_isTranslateMode) {
+      await _submitConversationText(pending);
+    } else {
+      isListening = false;
+      _stopRecordingTimer();
+      _setConversationMicState(ConversationMicState.idle);
+    }
+  }
+
   Future<void> processTextTurn(String text) async {
-    if (activeConversation == null || speakers.isEmpty || text.trim().isEmpty) return;
+    if (activeConversation == null || speakers.isEmpty || text.trim().isEmpty) {
+      _setConversationMicState(ConversationMicState.waiting);
+      return;
+    }
+
+    _setConversationMicState(ConversationMicState.translating);
 
     final speaker = speakers.firstWhere((item) => item.active, orElse: () => speakers.first);
     final isMe = speakers.indexOf(speaker) == 0;
     final source = isMe ? activeConversation!.sourceLanguage : activeConversation!.targetLanguage;
     final target = isMe ? activeConversation!.targetLanguage : activeConversation!.sourceLanguage;
 
-    // Position du tour
     final int turnIndex = timeline.length;
     _localOriginals[turnIndex] = text;
     lastRecordedText = text;
@@ -754,8 +872,6 @@ class AppState extends ChangeNotifier {
     try {
       final result = await backend.processTextTurn(activeConversation!.id, speaker.id, text, source, target);
       final payload = result is Map ? Map<String, dynamic>.from(result) : <String, dynamic>{};
-
-      // Extraction améliorée de la traduction
       final data = payload['data'] ?? payload;
       final transObj = data['translation'] ?? data;
       translated = (transObj['translatedText'] ?? transObj['text'] ?? '').toString();
@@ -768,23 +884,29 @@ class AppState extends ChangeNotifier {
       await activateSpeaker(nextSpeaker);
     }
 
-    await refreshTimeline();
+    try {
+      await refreshTimeline();
+    } catch (e) {
+      debugPrint('Rafraîchissement timeline différé: $e');
+    }
 
-    // Secours si traduction vide
     if (translated.isEmpty && timeline.isNotEmpty) {
       final last = timeline.last;
       translated = (last['translatedText'] ?? last['translation']?['translatedText'] ?? '').toString();
     }
 
     if (translated.isNotEmpty) {
+      _setConversationMicState(ConversationMicState.playing);
       await speakMessage(translated, target);
     }
 
-    // Nettoyage complet
+    _conversationHoldActive = false;
+    _isAutoRestarting = false;
     await voiceService.reset();
+    await voiceService.stopListening();
     isListening = false;
     _stopRecordingTimer();
-    notifyListeners();
+    _setConversationMicState(ConversationMicState.waiting);
   }
 
   Future<void> speakMessage(String text, String langCode) async {

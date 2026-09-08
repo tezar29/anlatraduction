@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
+import '../models/language.dart';
+import '../models/country.dart';
 import '../main.dart';
 import 'verify_email_screen.dart';
 
@@ -17,8 +19,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final lastName = TextEditingController();
   final email = TextEditingController();
   final password = TextEditingController();
-  final primaryLanguage = TextEditingController(text: 'fr');
-  final country = TextEditingController(text: 'FR');
+  String _selectedLanguage = 'fr';
+  String _selectedCountry = 'FR';
   final timezone = TextEditingController(text: 'Europe/Paris');
   bool _passwordVisible = false;
 
@@ -48,8 +50,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       password: passwordText,
       firstName: firstNameText,
       lastName: lastNameText,
-      primaryLanguage: primaryLanguage.text.trim(),
-      country: country.text.trim(),
+      primaryLanguage: _selectedLanguage,
+      country: _selectedCountry,
       timezone: timezone.text.trim(),
     );
 
@@ -146,14 +148,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      TextField(
-                        controller: primaryLanguage,
+                      DropdownButtonFormField<String>(
+                        value: _selectedLanguage,
                         decoration: const InputDecoration(labelText: 'Langue principale'),
+                        items: AppLanguage.all
+                            .map((lang) => DropdownMenuItem(
+                                  value: lang.code,
+                                  child: Text('${lang.flagEmoji} ${lang.label}'),
+                                ))
+                            .toList(),
+                        onChanged: (val) => setState(() => _selectedLanguage = val ?? 'fr'),
                       ),
                       const SizedBox(height: 12),
-                      TextField(
-                        controller: country,
+                      DropdownButtonFormField<String>(
+                        value: _selectedCountry,
                         decoration: const InputDecoration(labelText: 'Pays'),
+                        items: AppCountry.all
+                            .map((c) => DropdownMenuItem(
+                                  value: c.code,
+                                  child: Text('${c.flagEmoji} ${c.name}'),
+                                ))
+                            .toList(),
+                        onChanged: (val) => setState(() => _selectedCountry = val ?? 'FR'),
                       ),
                       const SizedBox(height: 12),
                       TextField(

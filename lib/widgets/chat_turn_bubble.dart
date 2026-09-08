@@ -38,19 +38,19 @@ class ChatTurnBubble extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
       child: Column(
         crossAxisAlignment:
-            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            isMe ? CrossAxisAlignment.start : CrossAxisAlignment.end,
         children: [
           // Chaque locuteur occupe son côté du fil, comme dans une vraie
-          // messagerie : nous à droite, l'interlocuteur à gauche.
+          // messagerie : nous à gauche, l'interlocuteur à droite.
           Align(
-            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+            alignment: isMe ? Alignment.centerLeft : Alignment.centerRight,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment:
                   isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                if (!isMe) _buildBeak(false, bubbleColor),
+                if (isMe) _buildBeak(false, bubbleColor),
                 Flexible(
                   child: Container(
                     constraints: BoxConstraints(
@@ -62,8 +62,8 @@ class ChatTurnBubble extends StatelessWidget {
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(20),
                         topRight: const Radius.circular(20),
-                        bottomLeft: Radius.circular(isMe ? 20 : 3),
-                        bottomRight: Radius.circular(isMe ? 3 : 20),
+                        bottomLeft: Radius.circular(isMe ? 3 : 20),
+                        bottomRight: Radius.circular(isMe ? 20 : 3),
                       ),
                       border: isMe
                           ? null
@@ -78,8 +78,8 @@ class ChatTurnBubble extends StatelessWidget {
                     ),
                     child: Column(
                       crossAxisAlignment: isMe
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
+                          ? CrossAxisAlignment.start
+                          : CrossAxisAlignment.end,
                       children: [
                         // Traduction en premier : lecture rapide du résultat.
                         Row(
@@ -89,7 +89,7 @@ class ChatTurnBubble extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 translatedText.toUpperCase(),
-                                textAlign: isMe ? TextAlign.right : TextAlign.left,
+                                textAlign: isMe ? TextAlign.left : TextAlign.right,
                                 style: TextStyle(
                                   fontSize: 15,
                                   height: 1.25,
@@ -117,7 +117,7 @@ class ChatTurnBubble extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 originalText,
-                                textAlign: isMe ? TextAlign.right : TextAlign.left,
+                                textAlign: isMe ? TextAlign.left : TextAlign.right,
                                 style: TextStyle(
                                   fontSize: 13,
                                   height: 1.3,
@@ -133,7 +133,7 @@ class ChatTurnBubble extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (isMe) _buildBeak(true, bubbleColor),
+                if (!isMe) _buildBeak(true, bubbleColor),
               ],
             ),
           ),
@@ -143,6 +143,7 @@ class ChatTurnBubble extends StatelessWidget {
             padding: const EdgeInsets.only(top: 5, left: 14, right: 14),
             child: Text(
               isMe ? 'Moi' : speakerName,
+              textAlign: isMe ? TextAlign.left : TextAlign.right,
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
